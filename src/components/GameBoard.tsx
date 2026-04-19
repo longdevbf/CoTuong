@@ -6,6 +6,8 @@ import { findBestMove } from "@/lib/AIEngine";
 import { SQ_SIZE, WIDTH_BOARD, HEIGHT_BOARD, RED_PIECES, BLACK_PIECES } from "@/lib/constants";
 import WinScreen from "./WinScreen";
 
+import { useAudio } from "@/contexts/AudioContext";
+
 interface GameBoardProps {
   playWithAI: boolean;
   playerName: string;
@@ -43,6 +45,7 @@ function loadImages(): Promise<void> {
 }
 
 export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardProps) {
+  const { playSFX } = useAudio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gsRef = useRef(new GameState());
   const validMovesRef = useRef<Move[]>([]);
@@ -101,6 +104,17 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     }
   }, []);
 
+  const handleGameEnd = (gs: GameState, isCheckMate: boolean) => {
+    if (isCheckMate) {
+      const playerWon = !gs.redToMove; // Red just moved => gs.redToMove is false => Red won. Player is Red.
+      playSFX(playerWon ? "victory" : "defeat");
+      setWinMessage(gs.redToMove ? "Đen thắng!" : "Đỏ thắng!");
+    } else {
+      playSFX("defeat"); // default for tie
+      setWinMessage("Hòa cờ!");
+    }
+  };
+
   const scheduleAI = useCallback(() => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     setAiThinking(true);
@@ -111,24 +125,26 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       const aiMove = findBestMove(gs, moves);
       if (aiMove) {
         gs.makeMove(aiMove);
+        playSFX(aiMove.pieceCaptured !== "--" ? "capture" : "move");
+        
         validMovesRef.current = gs.getValidMoves();
         setRedToMove(gs.redToMove);
-        if (gs.checkMate) setWinMessage(gs.redToMove ? "Đen thắng!" : "Đỏ thắng!");
-        else if (gs.staleMate) setWinMessage("Hòa cờ!");
+        if (gs.checkMate || gs.staleMate) handleGameEnd(gs, gs.checkMate);
         draw();
       }
       setAiThinking(false);
     }, 300);
-  }, [draw]);
+  }, [draw, playSFX]);
 
   useEffect(() => {
     loadImages().then(() => {
       gsRef.current = new GameState();
       validMovesRef.current = gsRef.current.getValidMoves();
       setReady(true);
+      playSFX("start");
     });
     return () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); };
-  }, []);
+  }, [playSFX]);
 
   useEffect(() => { if (ready) draw(); }, [ready, draw]);
 
@@ -166,20 +182,24 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       const validMove = validMovesRef.current.find(m => movesEqual(m, move));
       if (validMove) {
         gs.makeMove(validMove);
+        playSFX(validMove.pieceCaptured !== "--" ? "capture" : "move");
+
         validMovesRef.current = gs.getValidMoves();
         sqSelectedRef.current = null;
         playerClicksRef.current = [];
         setRedToMove(gs.redToMove);
 
-        if (gs.checkMate) setWinMessage(gs.redToMove ? "Đen thắng!" : "Đỏ thắng!");
-        else if (gs.staleMate) setWinMessage("Hòa cờ!");
-        else if (playWithAI) scheduleAI();
+        if (gs.checkMate || gs.staleMate) {
+          handleGameEnd(gs, gs.checkMate);
+        } else if (playWithAI) {
+          scheduleAI();
+        }
       } else {
         playerClicksRef.current = [[row, col]];
       }
     }
     draw();
-  }, [winMessage, playWithAI, draw, scheduleAI]);
+  }, [winMessage, playWithAI, draw, scheduleAI, playSFX]);
 
   const handleRestart = useCallback(() => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
