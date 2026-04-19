@@ -2,6 +2,8 @@
 import { useState } from "react";
 import Image from "next/image";
 
+import { useAudio } from "@/contexts/AudioContext";
+
 interface MenuProps {
   playerName: string;
   onPlayPvP: () => void;
@@ -13,9 +15,12 @@ interface MenuProps {
 export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack }: MenuProps) {
   const [showRules, setShowRules] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [volumeMaster, setVolumeMaster] = useState(50);
-  const [volumeBGM, setVolumeBGM] = useState(50);
-  const [volumeSFX, setVolumeSFX] = useState(50);
+  
+  const { 
+    volumeMaster, setVolumeMaster, 
+    volumeBGM, setVolumeBGM, 
+    volumeSFX, setVolumeSFX,
+  } = useAudio();
 
   return (
     <div className="relative w-full h-screen flex flex-col items-center justify-center overflow-hidden">
