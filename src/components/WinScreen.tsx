@@ -1,4 +1,5 @@
 "use client";
+import { useAudio } from "@/contexts/AudioContext";
 
 interface WinScreenProps {
   message: string;
@@ -7,6 +8,7 @@ interface WinScreenProps {
 }
 
 export default function WinScreen({ message, onBack, onRestart }: WinScreenProps) {
+  const { playSFX } = useAudio();
   let title = message;
   let subtitle = "";
 
@@ -31,13 +33,19 @@ export default function WinScreen({ message, onBack, onRestart }: WinScreenProps
         
         <div className="flex flex-col gap-4 w-full items-center mt-4">
           <button
-            onClick={onRestart}
+            onClick={() => {
+              playSFX("notify");
+              onRestart();
+            }}
             className="w-56 py-3 bg-yellow-500 text-black border-2 border-yellow-400 rounded-full text-xl font-bold hover:bg-yellow-400 transition-all shadow-[0_0_15px_rgba(234,179,8,0.4)] tracking-widest uppercase"
           >
             Chơi lại
           </button>
           <button
-            onClick={onBack}
+            onClick={() => {
+              playSFX("notify");
+              onBack();
+            }}
             className="w-56 py-3 bg-transparent text-yellow-300 border-2 border-yellow-600/50 rounded-full text-xl font-bold hover:bg-yellow-600/20 transition-all tracking-widest shadow-sm uppercase"
           >
             Menu
