@@ -55,6 +55,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
   const [ready, setReady] = useState(false);
   const [redToMove, setRedToMove] = useState(true);
   const [aiThinking, setAiThinking] = useState(false);
+  const [tick, setTick] = useState(0); // Add tick to force re-render
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Player is always Red (bottom), opponent is Black (top)
@@ -106,11 +107,11 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
 
   const handleGameEnd = (gs: GameState, isCheckMate: boolean) => {
     if (isCheckMate) {
-      const playerWon = !gs.redToMove; // Red just moved => gs.redToMove is false => Red won. Player is Red.
+      const playerWon = !gs.redToMove;
       playSFX(playerWon ? "victory" : "defeat");
       setWinMessage(gs.redToMove ? "Đen thắng!" : "Đỏ thắng!");
     } else {
-      playSFX("defeat"); // default for tie
+      playSFX("defeat");
       setWinMessage("Hòa cờ!");
     }
   };
@@ -129,6 +130,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
         
         validMovesRef.current = gs.getValidMoves();
         setRedToMove(gs.redToMove);
+        setTick(t => t + 1); // Update UI
         if (gs.checkMate || gs.staleMate) handleGameEnd(gs, gs.checkMate);
         draw();
       }
@@ -141,6 +143,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       gsRef.current = new GameState();
       validMovesRef.current = gsRef.current.getValidMoves();
       setReady(true);
+      setTick(0);
       playSFX("start");
     });
     return () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); };
@@ -188,6 +191,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
         sqSelectedRef.current = null;
         playerClicksRef.current = [];
         setRedToMove(gs.redToMove);
+        setTick(t => t + 1); // Update UI
 
         if (gs.checkMate || gs.staleMate) {
           handleGameEnd(gs, gs.checkMate);
@@ -210,6 +214,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     setRedToMove(true);
     setAiThinking(false);
     setWinMessage(null);
+    setTick(t => t + 1); // Force clear captured items tray
     draw();
   }, [draw]);
 
@@ -219,41 +224,18 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     ? (redToMove ? "Lượt của bạn" : "Máy đang đi...")
     : (redToMove ? "Lượt Đỏ" : "Lượt Đen");
 
+  const moveLog = gsRef.current?.moveLog || [];
+  const playerCaptured = moveLog.filter(m => m.pieceMoved.startsWith("r") && m.pieceCaptured !== "--").map(m => m.pieceCaptured);
+  const opponentCaptured = moveLog.filter(m => m.pieceMoved.startsWith("b") && m.pieceCaptured !== "--").map(m => m.pieceCaptured);
+
   return (
-    <div className="relative w-full h-screen bg-[#120800] overflow-hidden flex items-center justify-center">
+    <div className="relative w-full h-screen bg-[#120800] overflow-hidden flex items-center justify-between px-8 md:px-16">
       <NextImage src="/assets/img/gamebackground.png" alt="game background" fill className="object-cover" priority />
-      <div className="absolute inset-0 bg-black/40 z-0" />
+      <div className="absolute inset-0 bg-black/50 z-0" />
       
-      {/* ── Board (centered) ── */}
-      {ready ? (
-        <div className="relative z-10">
-          <canvas
-            ref={canvasRef}
-            width={WIDTH_BOARD}
-            height={HEIGHT_BOARD}
-            className="block cursor-pointer"
-            style={{ height: "100vh", width: "auto" }}
-            onClick={handleClick}
-          />
-          {winMessage && (
-            <WinScreen message={winMessage} onBack={onBack} onRestart={handleRestart} />
-          )}
-        </div>
-      ) : (
-        <div className="text-white text-2xl">Đang tải...</div>
-      )}
-
-      {/* ── Right sidebar (absolute overlay) ── */}
-      <div className="absolute right-2 top-0 h-full flex flex-col justify-between py-3 w-[150px] z-10">
-
-        {/* Top: back + opponent card */}
-        <div className="flex flex-col gap-2">
-          <button
-            onClick={onBack}
-            className="self-start px-3 py-1 bg-red-700 hover:bg-red-600 text-white rounded-lg text-xs font-semibold shadow transition"
-          >
-            ← Quay lại
-          </button>
+      {/* ── LEFT COLUMN: Opponent & Back ── */}
+      <div className="relative z-10 w-[180px] h-full flex flex-col justify-between py-6">
+        <div className="flex flex-col gap-3">
           <PlayerCard
             avatar={opponentAvatar}
             name={opponentName}
@@ -261,34 +243,100 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
             isActive={!redToMove}
             thinking={aiThinking && !redToMove}
           />
+          <CapturedTray pieces={opponentCaptured} side="top" />
         </div>
 
-        {/* Middle: turn + restart */}
-        <div className="flex flex-col items-center gap-2">
-          <div className={`px-3 py-1.5 rounded-full text-xs font-bold shadow border transition-all duration-300 text-center ${
-            isMyTurn
-              ? "bg-red-700/80 border-red-400 text-white"
-              : "bg-gray-700/80 border-gray-500 text-gray-300"
-          }`}>
-            {aiThinking ? "Máy đang nghĩ..." : turnLabel}
-          </div>
-          <button
-            onClick={handleRestart}
-            className="px-3 py-1 bg-yellow-600/80 hover:bg-yellow-500 text-white rounded-lg text-xs font-medium shadow transition"
-          >
-            ↺ Ván mới
-          </button>
-        </div>
-
-        {/* Bottom: player card */}
-        <PlayerCard
-          avatar={playerAvatar}
-          name={playerName}
-          color="Đỏ (紅)"
-          isActive={redToMove}
-          thinking={false}
-        />
+        <button
+          onClick={onBack}
+          className="self-start px-5 py-3 bg-red-700/80 hover:bg-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-900/50 transition-all border border-red-500/50 flex items-center gap-2"
+        >
+          <span>←</span> Thoát
+        </button>
       </div>
+
+      {/* ── CENTER COLUMN: Board ── */}
+      <div className="relative z-10 flex flex-col items-center justify-center gap-4 h-full flex-1">
+        {/* Turn indicator */}
+        <div className={`px-8 py-2 rounded-full text-base font-bold shadow-xl border transition-all duration-300 text-center tracking-wide ${
+          isMyTurn
+            ? "bg-red-700/80 border-red-400 text-white shadow-red-900/50"
+            : "bg-gray-800/80 border-gray-500 text-gray-200 shadow-black/50"
+        }`}>
+          {aiThinking ? "Máy đang nghĩ..." : turnLabel}
+        </div>
+
+        {ready ? (
+          <div className="relative shadow-2xl rounded bg-black/20">
+            <canvas
+              ref={canvasRef}
+              width={WIDTH_BOARD}
+              height={HEIGHT_BOARD}
+              className="block cursor-pointer"
+              style={{ maxHeight: "calc(100vh - 140px)", width: "auto" }}
+              onClick={handleClick}
+            />
+            {winMessage && (
+              <WinScreen message={winMessage} onBack={onBack} onRestart={handleRestart} />
+            )}
+          </div>
+        ) : (
+          <div className="text-white text-2xl font-bold animate-pulse">Đang tải bàn cờ...</div>
+        )}
+
+        {/* Restart Button */}
+        <button
+          onClick={handleRestart}
+          className="px-6 py-2 bg-yellow-600/80 hover:bg-yellow-500 text-white rounded-full text-sm font-bold shadow-lg shadow-yellow-900/50 transition-all border border-yellow-500/50"
+        >
+          ↺ Ván mới
+        </button>
+      </div>
+
+      {/* ── RIGHT COLUMN: Player ── */}
+      <div className="relative z-10 w-[180px] h-full flex flex-col justify-end py-6">
+        <div className="flex flex-col gap-3">
+          <CapturedTray pieces={playerCaptured} side="bottom" />
+          <PlayerCard
+            avatar={playerAvatar}
+            name={playerName}
+            color="Đỏ (紅)"
+            isActive={redToMove}
+            thinking={false}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CapturedTray({ pieces, side }: { pieces: string[], side: "top" | "bottom" }) {
+  if (pieces.length === 0) return <div className="h-16" />; // space placeholder
+  
+  // Group pieces
+  const groupedPieces = pieces.reduce((acc, p) => {
+    acc[p] = (acc[p] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  return (
+    <div className={`flex flex-wrap gap-2 p-3 rounded-2xl border bg-black/40 shadow-inner ${
+      side === "top" ? "border-gray-600/50" : "border-red-900/50"
+    } min-h-[4rem] justify-center items-start`}>
+      {Object.entries(groupedPieces).map(([p, count]) => (
+        <div key={p} className="flex flex-col items-center relative">
+          <div className="relative w-7 h-7 drop-shadow-md">
+             <NextImage 
+               src={`/assets/img/${p.startsWith("r") ? "Red" : "Black"}/${p}.png`} 
+               fill 
+               alt={p} 
+               className="object-cover" 
+             />
+          </div>
+          {count > 1 && (
+            <span className="text-[10px] font-bold text-yellow-400 mt-0.5 -mb-2">x{count}</span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
