@@ -66,6 +66,11 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
   const [tick, setTick] = useState(0); // Add tick to force re-render
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Animation state
+  const [animatingMove, setAnimatingMove] = useState<Move | null>(null);
+  const [animationProgress, setAnimationProgress] = useState(0);
+  const isAnimatingRef = useRef(false);
+
   // Player is always Red (bottom), opponent is Black (top)
   const opponentName = playWithAI ? "Máy tính" : "Người chơi 2";
   const opponentAvatar = playWithAI ? "/assets/img/mayheader.png" : "/assets/img/denheader.png";
@@ -81,6 +86,21 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     const validMoves = validMovesRef.current;
 
     ctx.drawImage(boardImg, 0, 0, WIDTH_BOARD, HEIGHT_BOARD);
+
+    // Draw last move marker (previous position)
+    const lastMove = gs.moveLog[gs.moveLog.length - 1];
+    if (lastMove) {
+      const centerX = lastMove.startCol * SQ_SIZE + SQ_SIZE / 2;
+      const centerY = lastMove.startRow * SQ_SIZE + SQ_SIZE / 2;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, 8, 0, 2 * Math.PI);
+      ctx.fillStyle = "rgba(255, 215, 0, 0.4)"; // Semi-transparent gold
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 215, 0, 0.8)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
 
     if (sq) {
       const [r, c] = sq;
@@ -107,11 +127,45 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     for (let r = 0; r < 10; r++) {
       for (let c = 0; c < 9; c++) {
         const piece = gs.board[r][c];
-        if (piece !== "--" && PIECE_IMGS[piece])
+        if (piece !== "--" && PIECE_IMGS[piece]) {
+          // If this piece is currently animating, don't draw it at its board position
+          if (animatingMove && r === animatingMove.startRow && c === animatingMove.startCol) continue;
           ctx.drawImage(PIECE_IMGS[piece], c * SQ_SIZE, r * SQ_SIZE, SQ_SIZE, SQ_SIZE);
+        }
       }
     }
-  }, []);
+
+    // Draw the animating piece
+    if (animatingMove && PIECE_IMGS[animatingMove.pieceMoved]) {
+      const { startRow, startCol, endRow, endCol, pieceMoved } = animatingMove;
+      
+      // Easing: Ease-In-Out
+      const ease = animationProgress < 0.5 
+        ? 2 * animationProgress * animationProgress 
+        : 1 - Math.pow(-2 * animationProgress + 2, 2) / 2;
+
+      const currentX = startCol * SQ_SIZE + (endCol - startCol) * SQ_SIZE * ease;
+      const currentY = startRow * SQ_SIZE + (endRow - startRow) * SQ_SIZE * ease;
+
+      // Lift effect: shadow + scale
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,0.5)";
+      ctx.shadowBlur = 15;
+      ctx.shadowOffsetX = 5;
+      ctx.shadowOffsetY = 5;
+
+      const scale = 1.1;
+      const offset = (SQ_SIZE * (scale - 1)) / 2;
+      ctx.drawImage(
+        PIECE_IMGS[pieceMoved], 
+        currentX - offset, 
+        currentY - offset, 
+        SQ_SIZE * scale, 
+        SQ_SIZE * scale
+      );
+      ctx.restore();
+    }
+  }, [animatingMove, animationProgress]);
 
   const handleGameEnd = (gs: GameState, isCheckMate: boolean) => {
     if (isCheckMate) {
@@ -124,6 +178,46 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     }
   };
 
+  const performMove = useCallback((move: Move) => {
+    if (isAnimatingRef.current) return;
+    isAnimatingRef.current = true;
+    setAnimatingMove(move);
+    setAnimationProgress(0);
+
+    const duration = 250; // ms
+    const startTime = performance.now();
+
+    const animate = (time: number) => {
+      const elapsed = time - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      setAnimationProgress(progress);
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        // Animation complete
+        const gs = gsRef.current;
+        gs.makeMove(move);
+        playSFX(move.pieceCaptured !== "--" ? "capture" : "move");
+
+        validMovesRef.current = gs.getValidMoves();
+        sqSelectedRef.current = null;
+        playerClicksRef.current = [];
+        setRedToMove(gs.redToMove);
+        setTick(t => t + 1); // Update UI
+        
+        setAnimatingMove(null);
+        setAnimationProgress(0);
+        isAnimatingRef.current = false;
+
+        if (gs.checkMate || gs.staleMate) handleGameEnd(gs, gs.checkMate);
+        else if (playWithAI && !gs.redToMove) scheduleAI();
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, [playSFX, playWithAI, handleGameEnd]); // Note: scheduleAI is defined later, might need careful ordering or ref.
+
   const scheduleAI = useCallback(() => {
     if (aiTimerRef.current) clearTimeout(aiTimerRef.current);
     setAiThinking(true);
@@ -133,18 +227,11 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       if (moves.length === 0) { setAiThinking(false); return; }
       const aiMove = findBestMove(gs, moves);
       if (aiMove) {
-        gs.makeMove(aiMove);
-        playSFX(aiMove.pieceCaptured !== "--" ? "capture" : "move");
-        
-        validMovesRef.current = gs.getValidMoves();
-        setRedToMove(gs.redToMove);
-        setTick(t => t + 1); // Update UI
-        if (gs.checkMate || gs.staleMate) handleGameEnd(gs, gs.checkMate);
-        draw();
+        performMove(aiMove);
       }
       setAiThinking(false);
-    }, 300);
-  }, [draw, playSFX]);
+    }, 400); // Slightly longer delay for AI "thinking" feel
+  }, [performMove]);
 
   useEffect(() => {
     loadImages().then(() => {
@@ -192,20 +279,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       const move = createMove(start, end, gs.board);
       const validMove = validMovesRef.current.find(m => movesEqual(m, move));
       if (validMove) {
-        gs.makeMove(validMove);
-        playSFX(validMove.pieceCaptured !== "--" ? "capture" : "move");
-
-        validMovesRef.current = gs.getValidMoves();
-        sqSelectedRef.current = null;
-        playerClicksRef.current = [];
-        setRedToMove(gs.redToMove);
-        setTick(t => t + 1); // Update UI
-
-        if (gs.checkMate || gs.staleMate) {
-          handleGameEnd(gs, gs.checkMate);
-        } else if (playWithAI) {
-          scheduleAI();
-        }
+        performMove(validMove);
       } else {
         playerClicksRef.current = [[row, col]];
       }
