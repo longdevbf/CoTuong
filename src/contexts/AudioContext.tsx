@@ -8,7 +8,7 @@ interface AudioContextType {
   setVolumeMaster: (v: number) => void;
   setVolumeBGM: (v: number) => void;
   setVolumeSFX: (v: number) => void;
-  playSFX: (type: "move" | "capture" | "victory" | "defeat" | "start" | "notify") => void;
+  playSFX: (type: "move" | "capture" | "victory" | "defeat" | "start" | "notify" | "check") => void;
 }
 
 const AudioContext = createContext<AudioContextType | null>(null);
@@ -41,6 +41,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
       defeat: new Audio("/assets/audio/defeat.mp3"),
       start: new Audio("/assets/audio/boardstart.mp3"),
       notify: new Audio("/assets/audio/notify.mp3"),
+      check: new Audio("/assets/audio/move-check.mp3"),
     };
 
     // Yêu cầu tương tác người dùng đầu tiên để phát nhạc nền theo chính sách trình duyệt
@@ -75,7 +76,7 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, [volumeMaster, volumeBGM, volumeSFX]);
 
-  const playSFX = (type: "move" | "capture" | "victory" | "defeat" | "start" | "notify") => {
+  const playSFX = (type: "move" | "capture" | "victory" | "defeat" | "start" | "notify" | "check") => {
     const audio = sfxRefs.current[type];
     if (audio) {
       audio.currentTime = 0; // reset

@@ -102,6 +102,20 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     }
 
 
+    // Draw check indicator
+    if (gs.inCheck()) {
+      const [kr, kc] = gs.redToMove ? gs.redKingLocation : gs.blackKingLocation;
+      ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+      ctx.lineWidth = 4;
+      // Pulsing effect using animationProgress if animating, otherwise static
+      const pulse = 2 + Math.abs(Math.sin(tick / 5)) * 2; 
+      ctx.strokeRect(kc * SQ_SIZE + pulse, kr * SQ_SIZE + pulse, SQ_SIZE - pulse * 2, SQ_SIZE - pulse * 2);
+      
+      ctx.fillStyle = "rgba(255, 0, 0, 0.15)";
+      ctx.fillRect(kc * SQ_SIZE, kr * SQ_SIZE, SQ_SIZE, SQ_SIZE);
+    }
+
+
     if (sq) {
       const [r, c] = sq;
       if (gs.board[r][c] !== "--") {
@@ -209,6 +223,11 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
         setAnimatingMove(null);
         setAnimationProgress(0);
         isAnimatingRef.current = false;
+
+        // Play check sound if the move resulted in a check
+        if (gs.inCheck() && !gs.checkMate) {
+          playSFX("check");
+        }
 
         if (gs.checkMate || gs.staleMate) handleGameEnd(gs, gs.checkMate);
         else if (playWithAI && !gs.redToMove) scheduleAI();
