@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
+import { useAudio } from "@/contexts/AudioContext";
 
 interface HomeScreenProps {
   onStart: (name: string) => void;
@@ -9,10 +10,12 @@ interface HomeScreenProps {
 export default function HomeScreen({ onStart }: HomeScreenProps) {
   const [name, setName] = useState("");
   const [showRules, setShowRules] = useState(false);
+  const { playSFX } = useAudio();
 
   const handleStart = () => {
     const trimmed = name.trim();
     if (!trimmed) return;
+    playSFX("notify");
     onStart(trimmed);
   };
 
@@ -31,7 +34,10 @@ export default function HomeScreen({ onStart }: HomeScreenProps) {
 
       {/* ? button top-right */}
       <button
-        onClick={() => setShowRules(true)}
+        onClick={() => {
+          playSFX("notify");
+          setShowRules(true);
+        }}
         className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full bg-yellow-400 text-black font-bold text-xl shadow-lg hover:bg-yellow-300 transition-all border-2 border-yellow-700 flex items-center justify-center"
         title="Luật chơi"
       >
@@ -75,7 +81,13 @@ export default function HomeScreen({ onStart }: HomeScreenProps) {
         {/* Rules hint */}
         <p className="text-white/40 text-xs">
           Nhấn{" "}
-          <button onClick={() => setShowRules(true)} className="text-yellow-400 underline hover:text-yellow-300">
+          <button 
+            onClick={() => {
+              playSFX("notify");
+              setShowRules(true);
+            }} 
+            className="text-yellow-400 underline hover:text-yellow-300"
+          >
             ?
           </button>{" "}
           để xem luật chơi
@@ -100,7 +112,10 @@ export default function HomeScreen({ onStart }: HomeScreenProps) {
               className="w-full h-auto rounded-xl shadow-2xl border-2 border-yellow-500"
             />
             <button
-              onClick={() => setShowRules(false)}
+              onClick={() => {
+                playSFX("notify");
+                setShowRules(false);
+              }}
               className="absolute top-2 right-2 w-9 h-9 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-lg flex items-center justify-center shadow-lg"
             >
               ✕

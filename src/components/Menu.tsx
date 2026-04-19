@@ -20,6 +20,7 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
     volumeMaster, setVolumeMaster, 
     volumeBGM, setVolumeBGM, 
     volumeSFX, setVolumeSFX,
+    playSFX
   } = useAudio();
 
   return (
@@ -30,7 +31,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
 
       {/* <- Back button */}
       <button
-        onClick={onBack}
+        onClick={() => {
+          playSFX("notify");
+          onBack();
+        }}
         className="absolute top-5 left-5 z-20 px-4 py-2 rounded-full bg-black/50 text-yellow-300 font-bold shadow-lg hover:bg-black/80 transition-all border border-yellow-500/30 flex items-center justify-center gap-2"
         title="Quay lại màn hình chính"
       >
@@ -39,7 +43,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
 
       {/* ? button */}
       <button
-        onClick={() => setShowRules(true)}
+        onClick={() => {
+          playSFX("notify");
+          setShowRules(true);
+        }}
         className="absolute top-5 right-5 z-20 w-10 h-10 rounded-full bg-yellow-400 text-black font-bold text-xl shadow-lg hover:bg-yellow-300 transition-all border-2 border-yellow-700 flex items-center justify-center"
         title="Luật chơi"
       >
@@ -62,7 +69,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
           <div className="flex justify-center items-center w-full mb-2 relative">
             <h3 className="text-2xl font-bold text-gray-200 tracking-wider">Chế độ chơi</h3>
             <button
-              onClick={() => setShowSettings(true)}
+              onClick={() => {
+                playSFX("notify");
+                setShowSettings(true);
+              }}
               className="absolute right-0 text-yellow-500 hover:text-yellow-300 transition-all hover:rotate-90 drop-shadow-lg"
               title="Cài đặt"
             >
@@ -73,9 +83,9 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
             </button>
           </div>
 
-          <MenuButton label="Hai người chơi" onClick={onPlayPvP} />
-          <MenuButton label="Chơi với máy" onClick={onPlayAI} />
-          <MenuButton label="Luật chơi" onClick={onGuide} />
+          <MenuButton label="Hai người chơi" onClick={() => { playSFX("notify"); onPlayPvP(); }} />
+          <MenuButton label="Chơi với máy" onClick={() => { playSFX("notify"); onPlayAI(); }} />
+          <MenuButton label="Luật chơi" onClick={() => { playSFX("notify"); onGuide(); }} />
         </div>
       </div>
 
@@ -83,7 +93,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
       {showRules && (
         <div
           className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setShowRules(false)}
+          onClick={() => {
+            playSFX("notify");
+            setShowRules(false);
+          }}
         >
           <div className="relative w-[80vw] max-w-3xl" onClick={e => e.stopPropagation()}>
             <Image
@@ -94,7 +107,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
               className="w-full h-auto rounded-xl shadow-2xl border-2 border-yellow-500"
             />
             <button
-              onClick={() => setShowRules(false)}
+              onClick={() => {
+                playSFX("notify");
+                setShowRules(false);
+              }}
               className="absolute top-2 right-2 w-9 h-9 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-lg flex items-center justify-center shadow-lg"
             >
               ✕
@@ -107,7 +123,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
       {showSettings && (
         <div
           className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setShowSettings(false)}
+          onClick={() => {
+            playSFX("notify");
+            setShowSettings(false);
+          }}
         >
           <div
             className="bg-black/80 w-[90vw] max-w-[450px] rounded-2xl p-8 border border-yellow-500/50 shadow-2xl relative flex flex-col"
@@ -116,7 +135,10 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
             {/* Header */}
             <div className="flex items-center justify-center relative mb-10">
               <button
-                onClick={() => setShowSettings(false)}
+                onClick={() => {
+                  playSFX("notify");
+                  setShowSettings(false);
+                }}
                 className="absolute left-0 text-yellow-500 hover:text-yellow-300 font-bold p-1"
                 title="Quay lại"
               >

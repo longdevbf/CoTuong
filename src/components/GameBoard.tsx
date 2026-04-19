@@ -247,7 +247,10 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
         </div>
 
         <button
-          onClick={onBack}
+          onClick={() => {
+            playSFX("notify");
+            onBack();
+          }}
           className="self-start px-5 py-3 bg-red-700/80 hover:bg-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-900/50 transition-all border border-red-500/50 flex items-center gap-2"
         >
           <span>←</span> Thoát
@@ -285,7 +288,10 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
 
         {/* Restart Button */}
         <button
-          onClick={handleRestart}
+          onClick={() => {
+            playSFX("notify");
+            handleRestart();
+          }}
           className="px-6 py-2 bg-yellow-600/80 hover:bg-yellow-500 text-white rounded-full text-sm font-bold shadow-lg shadow-yellow-900/50 transition-all border border-yellow-500/50"
         >
           ↺ Ván mới
