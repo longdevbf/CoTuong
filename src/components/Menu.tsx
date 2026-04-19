@@ -85,7 +85,7 @@ export default function Menu({ playerName, onPlayPvP, onPlayAI, onGuide, onBack 
 
           <MenuButton label="Hai người chơi" onClick={() => { playSFX("notify"); onPlayPvP(); }} />
           <MenuButton label="Chơi với máy" onClick={() => { playSFX("notify"); onPlayAI(); }} />
-          <MenuButton label="Luật chơi" onClick={() => { playSFX("notify"); onGuide(); }} />
+
         </div>
       </div>
 

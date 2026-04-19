@@ -45,7 +45,15 @@ function loadImages(): Promise<void> {
 }
 
 export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardProps) {
-  const { playSFX } = useAudio();
+  const { 
+    volumeMaster, setVolumeMaster, 
+    volumeBGM, setVolumeBGM, 
+    volumeSFX, setVolumeSFX,
+    playSFX 
+  } = useAudio();
+  const [showRules, setShowRules] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gsRef = useRef(new GameState());
   const validMovesRef = useRef<Move[]>([]);
@@ -233,6 +241,36 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       <NextImage src="/assets/img/gamebackground.png" alt="game background" fill className="object-cover" priority />
       <div className="absolute inset-0 bg-black/50 z-0" />
       
+      {/* ── TOP RIGHT: Guide & Settings ── */}
+      <div className="absolute top-5 right-5 z-20 flex gap-3">
+        {/* Guide button */}
+        <button
+          onClick={() => {
+            playSFX("notify");
+            setShowRules(true);
+          }}
+          className="w-10 h-10 rounded-full bg-yellow-400 text-black font-bold text-xl shadow-lg hover:bg-yellow-300 transition-all border-2 border-yellow-700 flex items-center justify-center"
+          title="Luật chơi"
+        >
+          ?
+        </button>
+
+        {/* Settings button */}
+        <button
+          onClick={() => {
+            playSFX("notify");
+            setShowSettings(true);
+          }}
+          className="w-10 h-10 rounded-full bg-black/50 text-yellow-500 hover:text-yellow-300 transition-all flex items-center justify-center shadow-lg border border-yellow-500/30 backdrop-blur-sm"
+          title="Cài đặt"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          </svg>
+        </button>
+      </div>
+      
       {/* ── LEFT COLUMN: Opponent & Back ── */}
       <div className="relative z-10 w-[180px] h-full flex flex-col justify-between py-6">
         <div className="flex flex-col gap-3">
@@ -311,6 +349,76 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
           />
         </div>
       </div>
+
+      {/* Rules Modal */}
+      {showRules && (
+        <div
+          className="absolute inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => {
+            playSFX("notify");
+            setShowRules(false);
+          }}
+        >
+          <div className="relative w-[80vw] max-w-3xl" onClick={e => e.stopPropagation()}>
+            <NextImage
+              src="/assets/img/luatchoi.jpg"
+              alt="Luật chơi"
+              width={900}
+              height={700}
+              className="w-full h-auto rounded-xl shadow-2xl border-2 border-yellow-500"
+            />
+            <button
+              onClick={() => {
+                playSFX("notify");
+                setShowRules(false);
+              }}
+              className="absolute top-2 right-2 w-9 h-9 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-lg flex items-center justify-center shadow-lg"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div
+          className="absolute inset-0 z-[101] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => {
+            playSFX("notify");
+            setShowSettings(false);
+          }}
+        >
+          <div
+            className="bg-black/80 w-[90vw] max-w-[450px] rounded-2xl p-8 border border-yellow-500/50 shadow-2xl relative flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-center relative mb-10">
+              <button
+                onClick={() => {
+                  playSFX("notify");
+                  setShowSettings(false);
+                }}
+                className="absolute left-0 text-yellow-500 hover:text-yellow-300 font-bold p-1"
+                title="Quay lại"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-8 h-8">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 15 3 9m0 0 6-6M3 9h12a6 6 0 0 1 0 12h-3" />
+                </svg>
+              </button>
+              <h2 className="text-3xl font-extrabold text-yellow-300 uppercase tracking-wider">Cài đặt</h2>
+            </div>
+
+            {/* Sliders */}
+            <div className="flex flex-col gap-8">
+              <SliderRow label="Tổng thể" value={volumeMaster} onChange={setVolumeMaster} />
+              <SliderRow label="Nhạc nền" value={volumeBGM} onChange={setVolumeBGM} />
+              <SliderRow label="Âm thao tác" value={volumeSFX} onChange={setVolumeSFX} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -381,6 +489,31 @@ function PlayerCard({
             {thinking ? "Đang suy nghĩ..." : "● Đến lượt"}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+function SliderRow({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center justify-between gap-6">
+      <div className="w-32 py-2 px-1 text-center font-bold text-yellow-200 border border-yellow-500/50 rounded-lg text-sm bg-white/5 shrink-0 uppercase tracking-wide">
+        {label}
+      </div>
+      <div className="flex-1 flex items-center relative group">
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={value}
+          onChange={(e) => onChange(Number(e.target.value))}
+          className="w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-400 outline-none"
+        />
+        {/* Lớp màu phủ slider */}
+        <div
+          className="absolute left-0 h-1.5 bg-yellow-400 rounded-lg pointer-events-none"
+          style={{ width: `${value}%` }} 
+        />
       </div>
     </div>
   );
