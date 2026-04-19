@@ -201,9 +201,12 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
 
   return (
     <div className="relative w-full h-screen bg-[#120800] overflow-hidden flex items-center justify-center">
+      <NextImage src="/assets/img/gamebackground.png" alt="game background" fill className="object-cover" priority />
+      <div className="absolute inset-0 bg-black/40 z-0" />
+      
       {/* ── Board (centered) ── */}
       {ready ? (
-        <div className="relative">
+        <div className="relative z-10">
           <canvas
             ref={canvasRef}
             width={WIDTH_BOARD}
@@ -221,7 +224,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       )}
 
       {/* ── Right sidebar (absolute overlay) ── */}
-      <div className="absolute right-2 top-0 h-full flex flex-col justify-between py-3 w-[150px]">
+      <div className="absolute right-2 top-0 h-full flex flex-col justify-between py-3 w-[150px] z-10">
 
         {/* Top: back + opponent card */}
         <div className="flex flex-col gap-2">

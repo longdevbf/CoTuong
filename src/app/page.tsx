@@ -27,6 +27,7 @@ export default function Home() {
       onPlayPvP={() => setScreen("pvp")}
       onPlayAI={() => setScreen("ai")}
       onGuide={() => setScreen("guide")}
+      onBack={() => setScreen("home")}
     />
   );
 }
