@@ -20,12 +20,14 @@ export default function HomeScreen({ onStart }: HomeScreenProps) {
     <div className="relative w-full h-screen flex items-center justify-center overflow-hidden">
       {/* Background */}
       <Image
-        src="/assets/img/bgmanhinhchinh.png"
+        src="/assets/img/menubackground.png"
         alt="background"
         fill
         className="object-cover"
         priority
       />
+      {/* Phủ mờ background */}
+      <div className="absolute inset-0 bg-black/40 z-0" />
 
       {/* ? button top-right */}
       <button
@@ -48,8 +50,8 @@ export default function HomeScreen({ onStart }: HomeScreenProps) {
         </div>
 
         {/* Name input */}
-        <div className="flex flex-col gap-2 w-full">
-          <label className="text-yellow-200 text-sm font-medium tracking-wide">Tên người chơi</label>
+        <div className="flex flex-col gap-2 w-full items-center">
+          <label className="text-yellow-200 text-sm font-medium tracking-wide text-center">Tên người chơi</label>
           <input
             type="text"
             value={name}
@@ -57,7 +59,7 @@ export default function HomeScreen({ onStart }: HomeScreenProps) {
             onKeyDown={e => e.key === "Enter" && handleStart()}
             placeholder="Nhập tên của bạn..."
             maxLength={20}
-            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-yellow-500/50 text-white placeholder-white/40 text-base outline-none focus:border-yellow-400 focus:bg-white/15 transition-all"
+            className="w-full px-4 py-3 rounded-xl bg-white/10 border border-yellow-500/50 text-white placeholder-white/40 text-base outline-none focus:border-yellow-400 focus:bg-white/15 transition-all text-center"
           />
         </div>
 
