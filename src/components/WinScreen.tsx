@@ -14,7 +14,7 @@ export default function WinScreen({ message, onBack, onRestart }: WinScreenProps
 
   if (message === "Đỏ thắng!") {
     title = "Chiến thắng!";
-    subtitle = "Bạn có muốn tiếp tục chuỗi thắng không?";
+    subtitle = "Bạn có muốn chơi lại không?";
   } else if (message === "Đen thắng!") {
     title = "Thua cuộc!";
     subtitle = "Bạn có muốn phục thù không?";
@@ -27,8 +27,8 @@ export default function WinScreen({ message, onBack, onRestart }: WinScreenProps
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-black/80 border border-yellow-500/60 rounded-[2.5rem] px-16 py-12 flex flex-col items-center gap-10 shadow-2xl min-w-[450px]">
         <div className="flex flex-col items-center gap-4">
-          <h2 className="text-6xl font-extrabold text-yellow-400 tracking-wider drop-shadow-lg" style={{ fontFamily: "serif" }}>{title}</h2>
-          <p className="text-xl font-semibold text-yellow-100 tracking-wide mt-2">{subtitle}</p>
+          <h2 className="text-6xl font-extrabold text-yellow-400 tracking-wider drop-shadow-lg text-center" style={{ fontFamily: "serif" }}>{title}</h2>
+          <p className="text-xl font-semibold text-yellow-100 tracking-wide mt-2 text-center">{subtitle}</p>
         </div>
         
         <div className="flex flex-col gap-4 w-full items-center mt-4">
