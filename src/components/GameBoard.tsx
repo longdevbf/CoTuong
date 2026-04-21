@@ -194,8 +194,19 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     }
   }, [animatingMove, animationProgress]);
 
-  const handleGameEnd = useCallback((gs: GameState, isCheckMate: boolean, isTimeOut: boolean = false, timeOutMsg: string = "") => {
-    if (isTimeOut) {
+  const handleGameEnd = useCallback((
+    gs: GameState, 
+    isCheckMate: boolean, 
+    isTimeOut: boolean = false, 
+    timeOutMsg: string = "",
+    customMsg: string = ""
+  ) => {
+    if (customMsg) {
+      if (customMsg.includes("Đỏ thắng")) playSFX("victory");
+      else if (customMsg.includes("Đen thắng")) playSFX("defeat");
+      else playSFX("notify"); // Hòa
+      setWinMessage(customMsg);
+    } else if (isTimeOut) {
       const playerWon = gs.redToMove;
       playSFX(playerWon ? "victory" : "defeat");
       setWinMessage(timeOutMsg);
@@ -204,7 +215,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       playSFX(playerWon ? "victory" : "defeat");
       setWinMessage(gs.redToMove ? "Đen thắng!" : "Đỏ thắng!");
     } else {
-      playSFX("defeat");
+      playSFX("notify");
       setWinMessage("Hòa cờ!");
     }
   }, [playSFX]);
@@ -246,8 +257,20 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
           playSFX("check");
         }
 
-        if (gs.checkMate || gs.staleMate) handleGameEnd(gs, gs.checkMate);
-        else if (playWithAI && !gs.redToMove) scheduleAI();
+        // Bí tử = Thua (tương đương checkMate đối với hàm handleGameEnd cũ)
+        if (gs.checkMate || gs.staleMate) {
+          handleGameEnd(gs, true); // Truyền isCheckMate = true để xử thắng/thua luôn
+        } else if (gs.lossByPerpetualCheck) {
+          const winner = gs.redToMove ? "Đỏ thắng" : "Đen thắng";
+          const loser = gs.redToMove ? "Đen" : "Đỏ";
+          handleGameEnd(gs, false, false, "", `${winner} (Phe ${loser} vi phạm Trường chiếu)!`);
+        } else if (gs.drawBy60Moves) {
+          handleGameEnd(gs, false, false, "", "Hòa cờ (Luật 60 nước không ăn quân)!");
+        } else if (gs.drawByRepetition) {
+          handleGameEnd(gs, false, false, "", "Hòa cờ (Lặp lại trạng thái trò chơi 3 lần)!");
+        } else if (playWithAI && !gs.redToMove) {
+          scheduleAI();
+        }
       }
     };
 
