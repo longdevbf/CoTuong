@@ -35,8 +35,8 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     bgmRef.current.loop = true;
 
     sfxRefs.current = {
-      move: new Audio("/assets/audio/move-self.mp3"),
-      capture: new Audio("/assets/audio/capture.mp3"),
+      move: new Audio("/assets/audio/move-new.mp3"),
+      capture: new Audio("/assets/audio/capture-new.mp3"),
       victory: new Audio("/assets/audio/victory.mp3"),
       defeat: new Audio("/assets/audio/defeat.mp3"),
       start: new Audio("/assets/audio/boardstart.mp3"),
