@@ -74,7 +74,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Time management state
-  const [gameDuration, setGameDuration] = useState(10);
+  const gameDuration = 10;
   const [redTime, setRedTime] = useState(10 * 60000);
   const [blackTime, setBlackTime] = useState(10 * 60000);
   const lastTickRef = useRef(0);
@@ -585,29 +585,11 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
                   Thời gian
                 </div>
                 <div className="flex-1 flex gap-2">
-                  <button
-                    onClick={() => { playSFX("notify"); setGameDuration(5); }}
-                    className={`flex-1 py-1.5 font-bold rounded-lg transition-all border ${
-                      gameDuration === 5
-                        ? "bg-yellow-500 text-black border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)]"
-                        : "bg-black/50 text-yellow-500 border-yellow-700/50 hover:bg-yellow-900/40"
-                    }`}
-                  >
-                    5 Phút
-                  </button>
-                  <button
-                    onClick={() => { playSFX("notify"); setGameDuration(10); }}
-                    className={`flex-1 py-1.5 font-bold rounded-lg transition-all border ${
-                      gameDuration === 10
-                        ? "bg-yellow-500 text-black border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)]"
-                        : "bg-black/50 text-yellow-500 border-yellow-700/50 hover:bg-yellow-900/40"
-                    }`}
-                  >
+                  <div className="flex-1 py-1.5 font-bold rounded-lg border bg-yellow-500 text-black border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)] text-center">
                     10 Phút
-                  </button>
+                  </div>
                 </div>
               </div>
-              <p className="text-gray-400 text-xs text-center italic -mt-6">*Thời gian mới áp dụng khi chơi ván mới</p>
             </div>
           </div>
         </div>
