@@ -12,12 +12,12 @@ export default function WinScreen({ message, onBack, onRestart }: WinScreenProps
   let title = message;
   let subtitle = "";
 
-  if (message === "Đỏ thắng!") {
+  if (message.startsWith("Đỏ thắng")) {
     title = "Chiến thắng!";
-    subtitle = "Bạn có muốn chơi lại không?";
-  } else if (message === "Đen thắng!") {
+    subtitle = message.length > 10 ? message : "Bạn có muốn tiếp tục chuỗi thắng không?";
+  } else if (message.startsWith("Đen thắng")) {
     title = "Thua cuộc!";
-    subtitle = "Bạn có muốn phục thù không?";
+    subtitle = message.length > 10 ? message.replace("Đen thắng - ", "") : "Bạn có muốn phục thù không?";
   } else if (message === "Hòa cờ!") {
     title = "Hòa cờ!";
     subtitle = "Một ván cờ giằng co, chơi lại chứ?";
