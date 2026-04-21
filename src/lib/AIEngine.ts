@@ -1,9 +1,61 @@
-import { GameState, Move } from "./ChessEngine";
+import { GameState, Move, movesEqual } from "./ChessEngine";
 
 const PIECE_SCORES: Record<string, number> = {
   king: 10000, guard: 200, elephant: 200,
   rook: 900, horse: 400, cannon: 450, pawn: 100,
 };
+
+// Zobrist Hashing
+const ZOBRIST_TABLE: bigint[][][] = []; // [row][col][piece_index]
+const ZOBRIST_SIDE: bigint = BigInt(Math.floor(Math.random() * 0xFFFFFFFF)) << 32n | BigInt(Math.floor(Math.random() * 0xFFFFFFFF));
+const PIECE_TYPES = ["king", "guard", "elephant", "rook", "horse", "cannon", "pawn"];
+const PIECE_TO_INDEX: Record<string, number> = {};
+
+function initZobrist() {
+  for (let i = 0; i < 7; i++) {
+    PIECE_TO_INDEX["r_" + PIECE_TYPES[i]] = i;
+    PIECE_TO_INDEX["b_" + PIECE_TYPES[i]] = i + 7;
+  }
+  for (let r = 0; r < 10; r++) {
+    ZOBRIST_TABLE[r] = [];
+    for (let c = 0; c < 9; c++) {
+      ZOBRIST_TABLE[r][c] = [];
+      for (let p = 0; p < 14; p++) {
+        ZOBRIST_TABLE[r][c][p] = BigInt(Math.floor(Math.random() * 0xFFFFFFFF)) << 32n | BigInt(Math.floor(Math.random() * 0xFFFFFFFF));
+      }
+    }
+  }
+}
+initZobrist();
+
+function getBoardHash(gs: GameState): bigint {
+  let hash = 0n;
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 9; c++) {
+      const piece = gs.board[r][c];
+      if (piece !== "--") {
+        hash ^= ZOBRIST_TABLE[r][c][PIECE_TO_INDEX[piece]];
+      }
+    }
+  }
+  if (!gs.redToMove) hash ^= ZOBRIST_SIDE;
+  return hash;
+}
+
+// Transposition Table
+const TT_EXACT = 0, TT_ALPHA = 1, TT_BETA = 2;
+type TTEntry = { depth: number; score: number; flag: number; bestMove: Move | null };
+const transpositionTable = new Map<bigint, TTEntry>();
+
+const MAX_TT_SIZE = 500000;
+const INF = 1000000;
+
+// Heuristics
+let killerMoves: (Move | null)[][] = []; // [depth][2]
+let history: number[][][] = []; // [piece_index][row][col]
+let nodesVisited = 0;
+let startTime = 0;
+const TIME_LIMIT = 4800; // 4.8s to be safe
 
 const KING_SCORES = [
   [0,0,0,15,20,15,0,0,0],[0,0,0,10,10,10,0,0,0],[0,0,0,1,1,1,0,0,0],
@@ -91,47 +143,196 @@ function scoreBoard(gs: GameState): number {
   return score;
 }
 
-function moveOrdering(gs: GameState, moves: Move[]): Move[] {
+function quiescence(gs: GameState, alpha: number, beta: number, mult: number): number {
+  nodesVisited++;
+  if (nodesVisited % 1024 === 0) {
+    if (Date.now() - startTime > TIME_LIMIT) throw "TIME_UP";
+  }
+
+  const standPat = mult * scoreBoard(gs);
+  if (standPat >= beta) return beta;
+  if (alpha < standPat) alpha = standPat;
+
+  // Use getValidMoves but filter for captures to stay legal
+  const moves = gs.getValidMoves().filter(m => m.pieceCaptured !== "--");
+  if (moves.length === 0) return standPat;
+
+  const scored = moves.map(move => {
+    const victim = PIECE_SCORES[move.pieceCaptured.slice(2)] ?? 0;
+    const attacker = PIECE_SCORES[move.pieceMoved.slice(2)] ?? 0;
+    return { s: victim * 10 - attacker, move };
+  });
+  scored.sort((a, b) => b.s - a.s);
+
+  for (const item of scored) {
+    gs.makeMove(item.move);
+    let score: number;
+    try {
+      score = -quiescence(gs, -beta, -alpha, -mult);
+    } finally {
+      gs.undoMove();
+    }
+
+    if (score >= beta) return beta;
+    if (score > alpha) alpha = score;
+  }
+  return alpha;
+}
+
+function moveOrdering(gs: GameState, moves: Move[], depth: number, ttBestMove: Move | null): Move[] {
   const scored = moves.map(move => {
     let s = 0;
-    if (move.pieceCaptured !== "--") s += (PIECE_SCORES[move.pieceCaptured.slice(2)] ?? 0) * 2;
-    if ([4, 5].includes(move.endRow) && [4, 5].includes(move.endCol)) s += 50;
-    if (["horse", "elephant", "guard"].includes(move.pieceMoved.slice(2)) && [0, 9].includes(move.startRow)) s += 30;
+    // 1. TT Best Move
+    if (ttBestMove && movesEqual(move, ttBestMove)) s = 1000000;
+    // 2. MVV-LVA
+    else if (move.pieceCaptured !== "--") {
+      const victim = PIECE_SCORES[move.pieceCaptured.slice(2)] ?? 0;
+      const attacker = PIECE_SCORES[move.pieceMoved.slice(2)] ?? 0;
+      s = 100000 + (victim * 10 - attacker);
+    }
+    // 3. Killer Moves
+    else if (killerMoves[depth]) {
+      if (killerMoves[depth][0] && movesEqual(move, killerMoves[depth][0]!)) s = 90000;
+      else if (killerMoves[depth][1] && movesEqual(move, killerMoves[depth][1]!)) s = 80000;
+      else s = history[PIECE_TO_INDEX[move.pieceMoved]][move.endRow][move.endCol] ?? 0;
+    }
+    // 4. History Heuristic
+    else {
+      s = history[PIECE_TO_INDEX[move.pieceMoved]][move.endRow][move.endCol] ?? 0;
+    }
     return { s, move };
   });
   scored.sort((a, b) => b.s - a.s);
   return scored.map(x => x.move);
 }
 
-let nextMove: Move | null = null;
+function negaMax(gs: GameState, depth: number, alpha: number, beta: number, mult: number, hash: bigint, currentDepth: number): number {
+  nodesVisited++;
+  if (nodesVisited % 1024 === 0) {
+    if (Date.now() - startTime > TIME_LIMIT) throw "TIME_UP";
+  }
 
-function negaMax(gs: GameState, moves: Move[], depth: number, alpha: number, beta: number, mult: number, maxDepth: number): number {
-  if (depth === 0) return mult * scoreBoard(gs);
-  let best = -CHECKMATE;
-  const ordered = moveOrdering(gs, moves);
+  // TT Lookup
+  const ttEntry = transpositionTable.get(hash);
+  if (ttEntry && ttEntry.depth >= depth) {
+    if (ttEntry.flag === TT_EXACT) return ttEntry.score;
+    if (ttEntry.flag === TT_ALPHA && ttEntry.score <= alpha) return alpha;
+    if (ttEntry.flag === TT_BETA && ttEntry.score >= beta) return beta;
+  }
+
+  if (depth === 0) return quiescence(gs, alpha, beta, mult);
+
+  const moves = gs.getValidMoves();
+  if (moves.length === 0) {
+    const score = mult * scoreBoard(gs);
+    // Win: higher score (closer to INF), subtract depth to prefer shorter paths
+    if (score > 500) return score - currentDepth;
+    // Loss: lower score (closer to -INF), add depth to prefer longer paths
+    if (score < -500) return score + currentDepth;
+    return 0; // Stalemate
+  }
+
+  const ordered = moveOrdering(gs, moves, depth, ttEntry?.bestMove ?? null);
+  let bestScore = -INF;
+  let bestMove: Move | null = null;
+  const initialAlpha = alpha;
+
   for (const move of ordered) {
+    // Incremental Hash Update
+    const pIdx = PIECE_TO_INDEX[move.pieceMoved];
+    let nextHash = hash ^ ZOBRIST_TABLE[move.startRow][move.startCol][pIdx];
+    if (move.pieceCaptured !== "--") {
+      nextHash ^= ZOBRIST_TABLE[move.endRow][move.endCol][PIECE_TO_INDEX[move.pieceCaptured]];
+    }
+    nextHash ^= ZOBRIST_TABLE[move.endRow][move.endCol][pIdx];
+    nextHash ^= ZOBRIST_SIDE;
+
     gs.makeMove(move);
-    const score = -negaMax(gs, gs.getValidMoves(), depth - 1, -beta, -alpha, -mult, maxDepth);
-    gs.undoMove();
-    if (score > best) {
-      best = score;
-      if (depth === maxDepth) nextMove = move;
+    let score: number;
+    try {
+      score = -negaMax(gs, depth - 1, -beta, -alpha, -mult, nextHash, currentDepth + 1);
+    } finally {
+      gs.undoMove();
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMove = move;
     }
     alpha = Math.max(alpha, score);
-    if (alpha >= beta) break;
+    if (alpha >= beta) {
+      // Beta Cutoff - Store Killer Moves and History
+      if (move.pieceCaptured === "--") {
+        if (!killerMoves[depth]) killerMoves[depth] = [null, null];
+        if (killerMoves[depth][0] && !movesEqual(move, killerMoves[depth][0]!)) {
+          killerMoves[depth][1] = killerMoves[depth][0];
+          killerMoves[depth][0] = move;
+        } else if (!killerMoves[depth][0]) {
+          killerMoves[depth][0] = move;
+        }
+        const histIdx = PIECE_TO_INDEX[move.pieceMoved];
+        if (history[histIdx]) {
+          history[histIdx][move.endRow][move.endCol] += depth * depth;
+        }
+      }
+      break;
+    }
   }
-  return best;
+
+  // Store TT
+  let flag = TT_EXACT;
+  if (bestScore <= initialAlpha) flag = TT_ALPHA;
+  else if (bestScore >= beta) flag = TT_BETA;
+
+  if (transpositionTable.size > MAX_TT_SIZE) transpositionTable.clear();
+  transpositionTable.set(hash, { depth, score: bestScore, flag, bestMove });
+
+  return bestScore;
 }
 
 export function findBestMove(gs: GameState, validMoves: Move[]): Move | null {
-  nextMove = null;
-  const totalPieces = gs.board.flat().filter(p => p !== "--").length;
-  let depth = 2;
-  if (totalPieces <= 5) depth = 6;
-  else if (totalPieces <= 10) depth = 4;
-  else if (validMoves.length < 20) depth = 3;
+  startTime = Date.now();
+  nodesVisited = 0;
+  killerMoves = new Array(64).fill(null).map(() => [null, null]);
 
-  const ordered = moveOrdering(gs, validMoves);
-  negaMax(gs, ordered, depth, -CHECKMATE, CHECKMATE, gs.redToMove ? 1 : -1, depth);
-  return nextMove ?? (validMoves.length > 0 ? validMoves[Math.floor(Math.random() * validMoves.length)] : null);
+  // If new game, clear TT
+  if (gs.moveLog.length === 0) transpositionTable.clear();
+  
+  // Initialize history table if not already done
+  if (history.length === 0) {
+    history = new Array(14).fill(null).map(() => 
+      new Array(10).fill(null).map(() => 
+        new Array(9).fill(0)
+      )
+    );
+  }
+
+  let finalBestMove: Move | null = null;
+  let rootMoves = [...validMoves];
+  const hash = getBoardHash(gs);
+
+  try {
+    for (let depth = 1; depth <= 64; depth++) {
+      // Improve Root Move Ordering
+      if (finalBestMove) {
+        rootMoves = [
+          finalBestMove,
+          ...rootMoves.filter(m => !movesEqual(m, finalBestMove!))
+        ];
+      }
+
+      negaMax(gs, depth, -INF, INF, gs.redToMove ? 1 : -1, hash, 0);
+      
+      const entry = transpositionTable.get(hash);
+      if (entry && entry.bestMove) {
+        finalBestMove = entry.bestMove;
+      }
+      
+      if (entry && Math.abs(entry.score) > CHECKMATE) break;
+    }
+  } catch (e) {
+    if (e !== "TIME_UP") throw e;
+  }
+
+  return finalBestMove ?? (validMoves.length > 0 ? validMoves[Math.floor(Math.random() * validMoves.length)] : null);
 }
