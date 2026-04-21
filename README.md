@@ -16,4 +16,6 @@ Start game:
 npm run dev  
 
 Run game at:  
-http://localhost:8081
+http://localhost:8081  
+
+Or you can play at: https://co-tuong-pi.vercel.app/?fbclid=IwY2xjawRUWzRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEeq98NT8a6W1BNlnvGUhyZIFYAqF69x9VMSVkVBa4fYE5OmKCX5m2ky-ke2LU_aem_2-RZCSJpMs2vl2egs5h_bA
