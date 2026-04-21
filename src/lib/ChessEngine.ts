@@ -29,6 +29,43 @@ export function getMoveNotation(move: Move): string {
   return rf(move.startRow, move.startCol) + rf(move.endRow, move.endCol);
 }
 
+// Zobrist Hashing variables
+export const ZOBRIST_TABLE: bigint[][][] = []; // [row][col][piece_index]
+export const ZOBRIST_SIDE: bigint = BigInt(Math.floor(Math.random() * 0xFFFFFFFF)) << 32n | BigInt(Math.floor(Math.random() * 0xFFFFFFFF));
+const PIECE_TYPES = ["king", "guard", "elephant", "rook", "horse", "cannon", "pawn"];
+export const PIECE_TO_INDEX: Record<string, number> = {};
+
+function initZobrist() {
+  for (let i = 0; i < 7; i++) {
+    PIECE_TO_INDEX["r_" + PIECE_TYPES[i]] = i;
+    PIECE_TO_INDEX["b_" + PIECE_TYPES[i]] = i + 7;
+  }
+  for (let r = 0; r < 10; r++) {
+    ZOBRIST_TABLE[r] = [];
+    for (let c = 0; c < 9; c++) {
+      ZOBRIST_TABLE[r][c] = [];
+      for (let p = 0; p < 14; p++) {
+        ZOBRIST_TABLE[r][c][p] = BigInt(Math.floor(Math.random() * 0xFFFFFFFF)) << 32n | BigInt(Math.floor(Math.random() * 0xFFFFFFFF));
+      }
+    }
+  }
+}
+initZobrist();
+
+export function getBoardHash(board: string[][], redToMove: boolean): bigint {
+  let hash = 0n;
+  for (let r = 0; r < 10; r++) {
+    for (let c = 0; c < 9; c++) {
+      const piece = board[r][c];
+      if (piece !== "--") {
+        hash ^= ZOBRIST_TABLE[r][c][PIECE_TO_INDEX[piece]];
+      }
+    }
+  }
+  if (!redToMove) hash ^= ZOBRIST_SIDE;
+  return hash;
+}
+
 export class GameState {
   board: string[][];
   redToMove: boolean;
@@ -37,6 +74,14 @@ export class GameState {
   blackKingLocation: [number, number];
   checkMate: boolean;
   staleMate: boolean;
+
+  currentHash: bigint;
+  zobristHistory: bigint[];
+  halfMovesWithoutCapture: number;
+  halfMovesHistory: number[];
+  drawBy60Moves: boolean;
+  drawByRepetition: boolean;
+  lossByPerpetualCheck: boolean;
 
   constructor() {
     this.board = [
@@ -57,15 +102,43 @@ export class GameState {
     this.blackKingLocation = [0, 4];
     this.checkMate = false;
     this.staleMate = false;
+    
+    this.currentHash = getBoardHash(this.board, this.redToMove);
+    this.zobristHistory = [this.currentHash];
+    this.halfMovesWithoutCapture = 0;
+    this.halfMovesHistory = [];
+    this.drawBy60Moves = false;
+    this.drawByRepetition = false;
+    this.lossByPerpetualCheck = false;
   }
 
   makeMove(move: Move): void {
+    const pIdx = PIECE_TO_INDEX[move.pieceMoved];
+    this.currentHash ^= ZOBRIST_TABLE[move.startRow][move.startCol][pIdx];
+    if (move.pieceCaptured !== "--") {
+      this.currentHash ^= ZOBRIST_TABLE[move.endRow][move.endCol][PIECE_TO_INDEX[move.pieceCaptured]];
+    }
+    this.currentHash ^= ZOBRIST_TABLE[move.endRow][move.endCol][pIdx];
+    this.currentHash ^= ZOBRIST_SIDE;
+
     this.board[move.startRow][move.startCol] = "--";
     this.board[move.endRow][move.endCol] = move.pieceMoved;
     this.moveLog.push(move);
+    
+    this.halfMovesHistory.push(this.halfMovesWithoutCapture);
+    if (move.pieceCaptured !== "--") {
+      this.halfMovesWithoutCapture = 0;
+    } else {
+      this.halfMovesWithoutCapture++;
+    }
+
     if (move.pieceMoved === "r_king") this.redKingLocation = [move.endRow, move.endCol];
     else if (move.pieceMoved === "b_king") this.blackKingLocation = [move.endRow, move.endCol];
+    
     this.redToMove = !this.redToMove;
+    this.zobristHistory.push(this.currentHash);
+    
+    this._checkRules();
   }
 
   undoMove(): void {
@@ -76,8 +149,43 @@ export class GameState {
     this.redToMove = !this.redToMove;
     if (move.pieceMoved === "r_king") this.redKingLocation = [move.startRow, move.startCol];
     else if (move.pieceMoved === "b_king") this.blackKingLocation = [move.startRow, move.startCol];
+
+    this.zobristHistory.pop();
+    this.currentHash = this.zobristHistory[this.zobristHistory.length - 1] ?? 0n;
+    
+    this.halfMovesWithoutCapture = this.halfMovesHistory.pop()!;
+    
     this.checkMate = false;
     this.staleMate = false;
+    this.drawBy60Moves = false;
+    this.drawByRepetition = false;
+    this.lossByPerpetualCheck = false;
+  }
+
+  private _checkRules(): void {
+    this.drawBy60Moves = this.halfMovesWithoutCapture >= 120;
+    this.drawByRepetition = false;
+    this.lossByPerpetualCheck = false;
+
+    if (this.halfMovesWithoutCapture > 0) {
+      let occurrences = 1;
+      const historyLen = this.zobristHistory.length;
+      const limit = Math.max(0, historyLen - this.halfMovesWithoutCapture - 1);
+      
+      for (let i = historyLen - 3; i >= limit; i -= 2) {
+        if (this.zobristHistory[i] === this.currentHash) {
+          occurrences++;
+          if (occurrences >= 3) {
+            if (this.inCheck()) {
+              this.lossByPerpetualCheck = true;
+            } else {
+              this.drawByRepetition = true;
+            }
+            break;
+          }
+        }
+      }
+    }
   }
 
   getValidMoves(): Move[] {

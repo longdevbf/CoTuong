@@ -1,46 +1,9 @@
-import { GameState, Move, movesEqual } from "./ChessEngine";
+import { GameState, Move, movesEqual, PIECE_TO_INDEX, ZOBRIST_TABLE, ZOBRIST_SIDE } from "./ChessEngine";
 
 const PIECE_SCORES: Record<string, number> = {
   king: 10000, guard: 200, elephant: 200,
   rook: 900, horse: 400, cannon: 450, pawn: 100,
 };
-
-// Zobrist Hashing
-const ZOBRIST_TABLE: bigint[][][] = []; // [row][col][piece_index]
-const ZOBRIST_SIDE: bigint = BigInt(Math.floor(Math.random() * 0xFFFFFFFF)) << 32n | BigInt(Math.floor(Math.random() * 0xFFFFFFFF));
-const PIECE_TYPES = ["king", "guard", "elephant", "rook", "horse", "cannon", "pawn"];
-const PIECE_TO_INDEX: Record<string, number> = {};
-
-function initZobrist() {
-  for (let i = 0; i < 7; i++) {
-    PIECE_TO_INDEX["r_" + PIECE_TYPES[i]] = i;
-    PIECE_TO_INDEX["b_" + PIECE_TYPES[i]] = i + 7;
-  }
-  for (let r = 0; r < 10; r++) {
-    ZOBRIST_TABLE[r] = [];
-    for (let c = 0; c < 9; c++) {
-      ZOBRIST_TABLE[r][c] = [];
-      for (let p = 0; p < 14; p++) {
-        ZOBRIST_TABLE[r][c][p] = BigInt(Math.floor(Math.random() * 0xFFFFFFFF)) << 32n | BigInt(Math.floor(Math.random() * 0xFFFFFFFF));
-      }
-    }
-  }
-}
-initZobrist();
-
-function getBoardHash(gs: GameState): bigint {
-  let hash = 0n;
-  for (let r = 0; r < 10; r++) {
-    for (let c = 0; c < 9; c++) {
-      const piece = gs.board[r][c];
-      if (piece !== "--") {
-        hash ^= ZOBRIST_TABLE[r][c][PIECE_TO_INDEX[piece]];
-      }
-    }
-  }
-  if (!gs.redToMove) hash ^= ZOBRIST_SIDE;
-  return hash;
-}
 
 // Transposition Table
 const TT_EXACT = 0, TT_ALPHA = 1, TT_BETA = 2;
@@ -127,7 +90,14 @@ function scoreBoard(gs: GameState): number {
   if (gs.checkMate) {
     return gs.redToMove ? -CHECKMATE - gs.moveLog.length : CHECKMATE + gs.moveLog.length;
   }
-  if (gs.staleMate) return STALEMATE;
+  if (gs.staleMate) {
+    return gs.redToMove ? -CHECKMATE - gs.moveLog.length : CHECKMATE + gs.moveLog.length;
+  }
+  if (gs.lossByPerpetualCheck) {
+    // Người vừa đi phạm luật trường chiếu -> Người hiện tại thắng
+    return gs.redToMove ? CHECKMATE + gs.moveLog.length : -CHECKMATE - gs.moveLog.length;
+  }
+  if (gs.drawBy60Moves || gs.drawByRepetition) return STALEMATE;
 
   let score = 0;
   for (let row = 0; row < 10; row++) {
@@ -221,6 +191,9 @@ function negaMax(gs: GameState, depth: number, alpha: number, beta: number, mult
   }
 
   if (depth === 0) return quiescence(gs, alpha, beta, mult);
+  
+  if (gs.lossByPerpetualCheck) return CHECKMATE - currentDepth;
+  if (gs.drawBy60Moves || gs.drawByRepetition) return STALEMATE;
 
   const moves = gs.getValidMoves();
   if (moves.length === 0) {
@@ -250,7 +223,7 @@ function negaMax(gs: GameState, depth: number, alpha: number, beta: number, mult
     gs.makeMove(move);
     let score: number;
     try {
-      score = -negaMax(gs, depth - 1, -beta, -alpha, -mult, nextHash, currentDepth + 1);
+      score = -negaMax(gs, depth - 1, -beta, -alpha, -mult, gs.currentHash, currentDepth + 1);
     } finally {
       gs.undoMove();
     }
@@ -309,7 +282,7 @@ export function findBestMove(gs: GameState, validMoves: Move[]): Move | null {
 
   let finalBestMove: Move | null = null;
   let rootMoves = [...validMoves];
-  const hash = getBoardHash(gs);
+  const hash = gs.currentHash;
 
   try {
     for (let depth = 1; depth <= 64; depth++) {
