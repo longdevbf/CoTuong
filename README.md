@@ -7,4 +7,10 @@ Players can play with our AI bot or the other, view the movement rules of each p
 Clone repository:
 cd yourfolder (which cotains our game)
 open terminal
-git clone 
+git clone https://github.com/longdevbf/CoTuong.git
+
+Install dependencies:
+npm install
+
+Start game:
+npm run dev
