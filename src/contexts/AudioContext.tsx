@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 
 interface AudioContextType {
   volumeMaster: number;
@@ -76,13 +76,13 @@ export const AudioProvider = ({ children }: { children: React.ReactNode }) => {
     });
   }, [volumeMaster, volumeBGM, volumeSFX]);
 
-  const playSFX = (type: "move" | "capture" | "victory" | "defeat" | "start" | "notify" | "check") => {
+  const playSFX = useCallback((type: "move" | "capture" | "victory" | "defeat" | "start" | "notify" | "check") => {
     const audio = sfxRefs.current[type];
     if (audio) {
       audio.currentTime = 0; // reset
       audio.play().catch(e => console.warn("Lỗi phát SFX:", e));
     }
-  };
+  }, []);
 
   return (
     <AudioContext.Provider value={{
