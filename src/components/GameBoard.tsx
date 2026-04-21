@@ -44,6 +44,13 @@ function loadImages(): Promise<void> {
   });
 }
 
+function formatTime(ms: number) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
 export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardProps) {
   const { 
     volumeMaster, setVolumeMaster, 
@@ -65,6 +72,12 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
   const [aiThinking, setAiThinking] = useState(false);
   const [tick, setTick] = useState(0); // Add tick to force re-render
   const aiTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Time management state
+  const [gameDuration, setGameDuration] = useState(10);
+  const [redTime, setRedTime] = useState(10 * 60000);
+  const [blackTime, setBlackTime] = useState(10 * 60000);
+  const lastTickRef = useRef(0);
 
   // Animation state
   const [animatingMove, setAnimatingMove] = useState<Move | null>(null);
@@ -181,8 +194,12 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     }
   }, [animatingMove, animationProgress]);
 
-  const handleGameEnd = (gs: GameState, isCheckMate: boolean) => {
-    if (isCheckMate) {
+  const handleGameEnd = useCallback((gs: GameState, isCheckMate: boolean, isTimeOut: boolean = false, timeOutMsg: string = "") => {
+    if (isTimeOut) {
+      const playerWon = gs.redToMove;
+      playSFX(playerWon ? "victory" : "defeat");
+      setWinMessage(timeOutMsg);
+    } else if (isCheckMate) {
       const playerWon = !gs.redToMove;
       playSFX(playerWon ? "victory" : "defeat");
       setWinMessage(gs.redToMove ? "Đen thắng!" : "Đỏ thắng!");
@@ -190,7 +207,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       playSFX("defeat");
       setWinMessage("Hòa cờ!");
     }
-  };
+  }, [playSFX]);
 
   const performMove = useCallback((move: Move) => {
     if (isAnimatingRef.current) return;
@@ -244,12 +261,13 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       const gs = gsRef.current;
       const moves = validMovesRef.current;
       if (moves.length === 0) { setAiThinking(false); return; }
+      // Truyền thêm blackTime cho AI để AI không nghĩ quá lố số giờ còn lại
       const aiMove = findBestMove(gs, moves);
       if (aiMove) {
         performMove(aiMove);
       }
       setAiThinking(false);
-    }, 400); // Slightly longer delay for AI "thinking" feel
+    }, 50); // Giảm delay ảo xuống 50ms để không bị trừ lố thời gian
   }, [performMove]);
 
   useEffect(() => {
@@ -258,12 +276,46 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
       validMovesRef.current = gsRef.current.getValidMoves();
       setReady(true);
       setTick(0);
+      lastTickRef.current = Date.now();
       playSFX("start");
     });
     return () => { if (aiTimerRef.current) clearTimeout(aiTimerRef.current); };
   }, [playSFX]);
 
   useEffect(() => { if (ready) draw(); }, [ready, draw]);
+
+  useEffect(() => {
+    if (!ready || winMessage || animatingMove) {
+      lastTickRef.current = Date.now();
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const elapsed = now - lastTickRef.current;
+      lastTickRef.current = now;
+
+      if (redToMove) {
+        setRedTime(prev => {
+          const next = Math.max(0, prev - elapsed);
+          if (next === 0 && prev > 0) {
+            setTimeout(() => handleGameEnd(gsRef.current, false, true, "Đen thắng do Đỏ hết thời gian!"), 0);
+          }
+          return next;
+        });
+      } else {
+        setBlackTime(prev => {
+          const next = Math.max(0, prev - elapsed);
+          if (next === 0 && prev > 0) {
+            setTimeout(() => handleGameEnd(gsRef.current, false, true, "Đỏ thắng do Đen hết thời gian!"), 0);
+          }
+          return next;
+        });
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [ready, winMessage, animatingMove, redToMove, handleGameEnd]);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     if (winMessage) return;
@@ -315,9 +367,12 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
     setRedToMove(true);
     setAiThinking(false);
     setWinMessage(null);
+    setRedTime(gameDuration * 60000);
+    setBlackTime(gameDuration * 60000);
+    lastTickRef.current = Date.now();
     setTick(t => t + 1); // Force clear captured items tray
     draw();
-  }, [draw]);
+  }, [draw, gameDuration]);
 
   // Whose turn label for sidebar
   const isMyTurn = redToMove; // player is always Red
@@ -373,6 +428,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
             color="Đen (黑)"
             isActive={!redToMove}
             thinking={aiThinking && !redToMove}
+            timeLeft={blackTime}
           />
           <CapturedTray pieces={opponentCaptured} side="top" />
         </div>
@@ -417,16 +473,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
           <div className="text-white text-2xl font-bold animate-pulse">Đang tải bàn cờ...</div>
         )}
 
-        {/* Restart Button */}
-        <button
-          onClick={() => {
-            playSFX("notify");
-            handleRestart();
-          }}
-          className="px-6 py-2 bg-yellow-600/80 hover:bg-yellow-500 text-white rounded-full text-sm font-bold shadow-lg shadow-yellow-900/50 transition-all border border-yellow-500/50"
-        >
-          ↺ Ván mới
-        </button>
+
       </div>
 
       {/* ── RIGHT COLUMN: Player ── */}
@@ -439,6 +486,7 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
             color="Đỏ (紅)"
             isActive={redToMove}
             thinking={false}
+            timeLeft={redTime}
           />
         </div>
       </div>
@@ -508,6 +556,35 @@ export default function GameBoard({ playWithAI, playerName, onBack }: GameBoardP
               <SliderRow label="Tổng thể" value={volumeMaster} onChange={setVolumeMaster} />
               <SliderRow label="Nhạc nền" value={volumeBGM} onChange={setVolumeBGM} />
               <SliderRow label="Âm thao tác" value={volumeSFX} onChange={setVolumeSFX} />
+
+              <div className="flex items-center justify-between gap-6">
+                <div className="w-32 py-2 px-1 text-center font-bold text-yellow-200 border border-yellow-500/50 rounded-lg text-sm bg-white/5 shrink-0 uppercase tracking-wide">
+                  Thời gian
+                </div>
+                <div className="flex-1 flex gap-2">
+                  <button
+                    onClick={() => { playSFX("notify"); setGameDuration(5); }}
+                    className={`flex-1 py-1.5 font-bold rounded-lg transition-all border ${
+                      gameDuration === 5
+                        ? "bg-yellow-500 text-black border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)]"
+                        : "bg-black/50 text-yellow-500 border-yellow-700/50 hover:bg-yellow-900/40"
+                    }`}
+                  >
+                    5 Phút
+                  </button>
+                  <button
+                    onClick={() => { playSFX("notify"); setGameDuration(10); }}
+                    className={`flex-1 py-1.5 font-bold rounded-lg transition-all border ${
+                      gameDuration === 10
+                        ? "bg-yellow-500 text-black border-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)]"
+                        : "bg-black/50 text-yellow-500 border-yellow-700/50 hover:bg-yellow-900/40"
+                    }`}
+                  >
+                    10 Phút
+                  </button>
+                </div>
+              </div>
+              <p className="text-gray-400 text-xs text-center italic -mt-6">*Thời gian mới áp dụng khi chơi ván mới</p>
             </div>
           </div>
         </div>
@@ -549,14 +626,16 @@ function CapturedTray({ pieces, side }: { pieces: string[], side: "top" | "botto
 }
 
 function PlayerCard({
-  avatar, name, color, isActive, thinking,
+  avatar, name, color, isActive, thinking, timeLeft
 }: {
   avatar: string;
   name: string;
   color: string;
   isActive: boolean;
   thinking: boolean;
+  timeLeft: number;
 }) {
+  const isDanger = timeLeft <= 60000 && timeLeft > 0;
   return (
     <div className={`flex flex-col items-center gap-2 p-2 rounded-2xl border-2 transition-all duration-300 shadow-lg ${
       isActive
@@ -577,6 +656,11 @@ function PlayerCard({
       <div className="flex flex-col items-center gap-0.5 w-full">
         <span className="text-white font-bold text-xs truncate max-w-full text-center">{name}</span>
         <span className="text-xs font-medium text-gray-300 text-center">{color}</span>
+        <div className={`text-2xl font-black tracking-widest my-0.5 ${
+          isDanger ? "text-red-500 animate-pulse drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]" : "text-yellow-400 drop-shadow-md"
+        }`} style={{ fontFamily: "monospace" }}>
+          {formatTime(timeLeft)}
+        </div>
         {isActive && (
           <span className="text-xs text-yellow-300 font-semibold mt-0.5">
             {thinking ? "Đang suy nghĩ..." : "● Đến lượt"}
