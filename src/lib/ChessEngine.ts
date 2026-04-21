@@ -81,23 +81,28 @@ export class GameState {
   }
 
   getValidMoves(): Move[] {
-    const moves = this.getAllPossibleMoves();
-    for (let i = moves.length - 1; i >= 0; i--) {
-      this.makeMove(moves[i]);
-      if (this._kingsAreFacing()) {
-        moves.splice(i, 1);
-      } else {
-        this.redToMove = !this.redToMove;
-        if (this.inCheck()) moves.splice(i, 1);
-        this.redToMove = !this.redToMove;
+    const possibleMoves = this.getAllPossibleMoves();
+    const validMoves: Move[] = [];
+
+    for (const move of possibleMoves) {
+      this.makeMove(move);
+      // Check if move was legal for the side that just moved
+      this.redToMove = !this.redToMove;
+      const remainsInCheck = this.inCheck();
+      const kingsFacing = this._kingsAreFacing();
+      this.redToMove = !this.redToMove;
+
+      if (!remainsInCheck && !kingsFacing) {
+        validMoves.push(move);
       }
       this.undoMove();
     }
-    if (moves.length === 0) {
+
+    if (validMoves.length === 0) {
       if (this.inCheck()) this.checkMate = true;
       else this.staleMate = true;
     }
-    return moves;
+    return validMoves;
   }
 
   private _kingsAreFacing(): boolean {
